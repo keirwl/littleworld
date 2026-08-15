@@ -44,7 +44,7 @@ pub fn render_u8_greyscale(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::{fixture, rstest};
+    use rstest::rstest;
 
     #[rstest]
     fn test_greyscale_min() {

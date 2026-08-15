@@ -44,12 +44,11 @@ fn get_seed_word() -> String {
 
 fn noise_grid(config: &Config, mut rng: ChaCha8Rng) -> hex::Grid<f64> {
     let noise_seed = rng.next_u32();
-    println!("Perlin seed: {}", noise_seed);
+    println!("Perlin seed: {noise_seed}");
     let scale = rng.random_range(1..=20);
-    let frequency = scale as f64 / config.size as f64;
+    let frequency = f64::from(scale) / config.size as f64;
     println!(
-        "Frequency scale: {}, giving frequency: {}",
-        scale, frequency
+        "Frequency scale: {scale}, giving frequency: {frequency}"
     );
 
     let fbm = noise::Fbm::<noise::PerlinSurflet>::new(noise_seed).set_frequency(frequency);
@@ -71,8 +70,7 @@ fn noise_grid(config: &Config, mut rng: ChaCha8Rng) -> hex::Grid<f64> {
     let grid_max = grid.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let grid_mean = grid.iter().sum::<f64>() / grid.len() as f64;
     println!(
-        "Grid min: {:.3}, max: {:.3}, mean: {:.3}",
-        grid_min, grid_max, grid_mean
+        "Grid min: {grid_min:.3}, max: {grid_max:.3}, mean: {grid_mean:.3}"
     );
     grid
 }
@@ -82,7 +80,7 @@ fn ring_grid(config: &Config) -> hex::Grid<u8> {
     let middle_idx = (config.size * config.size / 2) + (config.size / 2 - 1);
     for n in 0..8 {
         let colour: u8 = if n == 0 { 0 } else { (32 * n) - 1 };
-        for i in grid.ring(middle_idx, n as u32) {
+        for i in grid.ring(middle_idx, u32::from(n)) {
             grid.set(i, colour).unwrap();
         }
     }
@@ -140,7 +138,7 @@ mod tests {
             .flat_map(|f| f.to_be_bytes())
             .collect::<Vec<u8>>();
         let hash = rng::hash_fnv_1a(&bytes);
-        println!("Golden hash: {:x}", hash);
-        assert_eq!(GOLDEN_HASH, hash)
+        println!("Golden hash: {hash:x}");
+        assert_eq!(GOLDEN_HASH, hash);
     }
 }
