@@ -180,6 +180,13 @@ impl<T> Grid<T> {
         let row = idx as i32 / self.w;
         HexAxial::from_oddq(col, row)
     }
+
+    // fn coords(&self, idx: usize) -> Option<(usize, usize)> {
+    //     if !self.bound(idx) {
+    //         return None;
+    //     }
+    //     Some((idx % self.w as usize, idx / self.w as usize))
+    // }
 }
 
 impl<T> Grid<T> {
@@ -194,7 +201,7 @@ impl<T> Grid<T> {
         Ok(grid)
     }
 
-    pub fn new_with(
+    pub fn new_with_index(
         w: usize,
         h: usize,
         mut f: impl FnMut(usize) -> T,
@@ -202,6 +209,20 @@ impl<T> Grid<T> {
         let mut grid: Grid<T> = Grid::new_empty(w, h)?;
         for i in 0..(w * h) {
             grid.store.push(f(i));
+        }
+        Ok(grid)
+    }
+
+    pub fn new_with_coords(
+        w: usize,
+        h: usize,
+        mut f: impl FnMut((usize, usize)) -> T,
+    ) -> Result<Grid<T>, GridError> {
+        let mut grid: Grid<T> = Grid::new_empty(w, h)?;
+        for j in 0..h {
+            for i in 0..w {
+            grid.store.push(f((i, j)));
+            }
         }
         Ok(grid)
     }
@@ -224,15 +245,16 @@ impl<T> Grid<T> {
         Ok(grid)
     }
 
-    // returns replaced value if successful, attempted new one if not
-    pub fn set(&mut self, idx: usize, t: T) -> Result<T, T>
+    // returns Err(attempted value) if out-of-bounds
+    pub fn set(&mut self, idx: usize, t: T) -> Result<(), T>
     where
         T: Copy,
     {
         if !self.bound(idx) {
             return Err(t);
         }
-        Ok(std::mem::replace(&mut self.store[idx], t))
+        self.store[idx] = t;
+        Ok(())
     }
 
     pub fn position(&self, t: &T) -> Option<usize>
@@ -244,7 +266,7 @@ impl<T> Grid<T> {
 
     // can return less than 6 neighbours if idx is at the edge, but cannot take an
     // idx off the grid and return neighbours on it. Instead will return empty
-    pub fn neighbours(&self, idx: usize) -> impl Iterator<Item = (Direction, usize)> {
+    pub fn neighbours(&self, idx: usize) -> impl Iterator<Item = (Direction, usize)> + use<T> {
         let mut result = Vec::<(Direction, usize)>::new();
         if self.bound(idx) {
             result.extend(
@@ -260,7 +282,7 @@ impl<T> Grid<T> {
     }
 
     // similar to above
-    pub fn ring(&self, idx: usize, n: u32) -> impl Iterator<Item = usize> {
+    pub fn ring(&self, idx: usize, n: u32) -> impl Iterator<Item = usize> + use<T> {
         let mut result = Vec::<usize>::new();
         if !self.bound(idx) || i32::try_from(n).is_err() {
             return result.into_iter();
@@ -281,7 +303,7 @@ impl<T> Grid<T> {
         result.into_iter()
     }
 
-    pub fn spiral(&self, idx: usize, n: u32) -> impl Iterator<Item = usize> {
+    pub fn spiral(&self, idx: usize, n: u32) -> impl Iterator<Item = usize> + use<T>  {
         let mut result = Vec::<usize>::new();
         for i in 0..=n {
             result.extend(self.ring(idx, i));
