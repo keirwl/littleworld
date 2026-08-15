@@ -8,7 +8,7 @@ argh = "0.1.19"
 derive_more = {version = "2.1.1", features = ["add", "mul", "from"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 noise = "0.9.0"
-rand = { version = "0.10.2", features = ["chacha"] }
+rand = { version = "=0.10.2", features = ["chacha"] }
 
 [dev-dependencies]
 divan = "0.1.21"

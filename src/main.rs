@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 use argh::FromArgs;
+use medieval::hex;
 use medieval::render;
+use medieval::rng::{Dice};
 use noise::{MultiFractal, NoiseFn};
 use rand::{prelude::*, rngs::ChaCha8Rng};
 use std::{fs::File, io::BufRead};
-
-use medieval::hex;
 
 struct Realm {
     size: u32,
@@ -45,7 +45,7 @@ fn get_seed_word() -> String {
 fn noise_grid(config: &Config, mut rng: ChaCha8Rng) -> hex::Grid<f64> {
     let noise_seed = rng.next_u32();
     println!("Perlin seed: {noise_seed}");
-    let scale = rng.random_range(1..=20);
+    let scale = rng.d(20);
     let frequency = f64::from(scale) / config.size as f64;
     println!(
         "Frequency scale: {scale}, giving frequency: {frequency}"
@@ -96,14 +96,6 @@ fn main() {
 
     let r_grid = ring_grid(&config);
     render::render_u8_greyscale(r_grid, &config.seed, &config.out_dir).unwrap();
-}
-
-fn d(s: u32) -> u32 {
-    rand::rng().random_range(1..=s)
-}
-
-fn dn(n: u32, d: u32) -> u32 {
-    (0..n).map(|_| rand::rng().random_range(1..=d)).sum()
 }
 
 #[cfg(test)]

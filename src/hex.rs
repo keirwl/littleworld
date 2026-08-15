@@ -2,6 +2,7 @@
  * https://www.redblobgames.com/grids/hexagons/implementation.html
  * with flat-topped hexes, odd-q positioning, primarily using axial coords
  */
+#![allow(dead_code)]
 use derive_more::{Add, Div, From, Mul, Sub};
 
 #[derive(Add, Sub, Mul, Div, From, Clone, Copy, Debug, PartialEq, Eq)]
@@ -181,12 +182,12 @@ impl<T> Grid<T> {
         HexAxial::from_oddq(col, row)
     }
 
-    // fn coords(&self, idx: usize) -> Option<(usize, usize)> {
-    //     if !self.bound(idx) {
-    //         return None;
-    //     }
-    //     Some((idx % self.w as usize, idx / self.w as usize))
-    // }
+    fn coords(&self, idx: usize) -> Option<(usize, usize)> {
+        if !self.bound(idx) {
+            return None;
+        }
+        Some((idx % self.w as usize, idx / self.w as usize))
+    }
 }
 
 impl<T> Grid<T> {

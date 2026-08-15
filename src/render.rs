@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::hex::Grid;
 
 // expects input in range -1.0 to 1.0, as returned by NoiseFn
+#[allow(clippy::cast_possible_truncation)]
 fn to_greyscale(i: f64) -> u8 {
     ((i + 1.0) * 128.0).floor() as u8
 }
