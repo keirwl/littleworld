@@ -1,0 +1,17 @@
+[package]
+name = "medieval"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+derive_more = {version = "2.1.1", features = ["add", "mul", "from"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+rand = { version = "0.10.2", features = ["chacha"] }
+
+[dev-dependencies]
+divan = "0.1.21"
+rstest = "0.26.1"
+
+[[bench]]
+name = "hex_length"
+harness = false
