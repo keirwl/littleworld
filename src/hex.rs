@@ -46,10 +46,12 @@ impl TryFrom<usize> for Direction {
 }
 
 impl HexAxial {
+    #[must_use]
     pub fn cube(&self) -> (i32, i32, i32) {
         (self.q, self.r, -self.q - self.r)
     }
 
+    #[must_use]
     pub fn from_oddq(col: i32, row: i32) -> HexAxial {
         let parity = col & 1;
         HexAxial {
@@ -58,6 +60,7 @@ impl HexAxial {
         }
     }
 
+    #[must_use]
     pub fn to_oddq(&self) -> (i32, i32) {
         let parity = self.q & 1;
         (self.q, self.r + (self.q - parity) / 2)
@@ -65,6 +68,7 @@ impl HexAxial {
 
     // distance from the origin. Called "length" because
     // "distance" is used for the length between two hexes
+    #[must_use]
     pub fn length(&self) -> i32 {
         let (q, r, s) = self.cube();
         (q.abs() + r.abs() + s.abs()) / 2
@@ -72,15 +76,18 @@ impl HexAxial {
 
     // redblobgames showed two equivalent ways of getting length,
     // benchmarking found this one to be slightly slower
+    #[must_use]
     pub fn length_max(&self) -> i32 {
         let (q, r, s) = self.cube();
         std::cmp::max(std::cmp::max(q.abs(), r.abs()), s.abs())
     }
 
+    #[must_use]
     pub fn distance(&self, other: HexAxial) -> i32 {
         (*self - other).length()
     }
 
+    #[must_use]
     pub fn neighbour(&self, dir: Direction) -> HexAxial {
         *self + OFFSETS[dir as usize]
     }
@@ -147,6 +154,7 @@ impl<T> Grid<T> {
         })
     }
 
+    #[must_use]
     pub fn dimensions(&self) -> (usize, usize) {
         (self.w as usize, self.h as usize)
     }
@@ -181,7 +189,7 @@ impl<T> Grid<T> {
     {
         let mut grid: Grid<T> = Grid::new_empty(w, h)?;
         for _ in 0..(w * h) {
-            grid.store.push(t.clone())
+            grid.store.push(t.clone());
         }
         Ok(grid)
     }
@@ -193,7 +201,7 @@ impl<T> Grid<T> {
     ) -> Result<Grid<T>, GridError> {
         let mut grid: Grid<T> = Grid::new_empty(w, h)?;
         for i in 0..(w * h) {
-            grid.store.push(f(i))
+            grid.store.push(f(i));
         }
         Ok(grid)
     }
@@ -345,7 +353,7 @@ mod tests {
       毛   顔   心   曜   昼   分   春   秋
     */
 
-    const GRID_STR: &str = r#"
+    const GRID_STR: &str = r"
         一二三四五六七八九十百千上下左右
         中大小月日年早木林山川土空田天生
         花草虫犬人名女男子目耳口手足見音
@@ -354,7 +362,7 @@ mod tests {
         数多少万半形太細広長点丸交光角計
         直線矢弱強高同親母父姉兄弟妹自友
         体毛頭顔首心時曜朝昼夜分週春夏秋
-    "#;
+    ";
 
     #[fixture]
     fn kanji_grid() -> Grid<char> {

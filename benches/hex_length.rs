@@ -1,7 +1,7 @@
 use medieval::hex::HexAxial;
 
 fn main() {
-    divan::main()
+    divan::main();
 }
 
 #[divan::bench]

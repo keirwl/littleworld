@@ -35,7 +35,7 @@ fn main() {
         &get_seed_word()
     };
     let grid: hex::Grid<i32> = hex::Grid::new_filled(1, 2, 0).unwrap();
-    println!("{:#?}", grid);
+    println!("{grid:#?}");
     let rnger = medieval::rng::RngMaster::new(seed);
     let mut rng = rnger.for_stage("test");
     println!("{:#?}", rng.get_seed());

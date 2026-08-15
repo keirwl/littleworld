@@ -6,7 +6,7 @@ const FNV_PRIME: u64 = 1099511628211;
 fn hash_fnv_1a(input: &[u8]) -> u64 {
     let mut hash = FNV_OFFSET_BASIS;
     for byte in input {
-        hash ^= *byte as u64;
+        hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     hash
@@ -18,12 +18,14 @@ pub struct RngMaster {
 }
 
 impl RngMaster {
+    #[must_use]
     pub fn new(seed: &str) -> RngMaster {
         RngMaster {
             master_seed: seed.into(),
         }
     }
 
+    #[must_use]
     pub fn for_stage(&self, stage: &str) -> rand::rngs::ChaCha8Rng {
         let mut stage: Vec<u8> = stage.as_bytes().to_vec();
         stage.extend(self.master_seed.as_bytes());
