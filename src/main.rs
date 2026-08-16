@@ -1,13 +1,21 @@
 #![allow(dead_code)]
+use std::fs::{File, OpenOptions, create_dir_all};
+use std::io::BufRead;
+use std::path::Path;
+
 use argh::FromArgs;
+use medieval::generation::elevation::{brown_palette, brownscale, generate};
 use medieval::hex;
-use medieval::render;
+use medieval::render::{render, to_greyscale};
 use medieval::rng::Dice;
 use noise::{MultiFractal, NoiseFn};
-use rand::{prelude::*, rngs::ChaCha8Rng};
-use std::{fs::File, io::BufRead};
-use tracing_subscriber::fmt::format::FmtSpan;
+use rand::prelude::*;
+use rand::rngs::ChaCha8Rng;
+use tracing::{Level, event};
+use tracing_subscriber::fmt::format::{FmtSpan, PrettyFields};
+use tracing_subscriber::prelude::*;
 use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, fmt};
 
 struct Realm {
     size: u32,
@@ -33,30 +41,29 @@ fn get_seed_word() -> String {
 #[tracing::instrument]
 fn noise_grid(config: &Config, mut rng: ChaCha8Rng) -> hex::Grid<f64> {
     let noise_seed = rng.next_u32();
-    println!("Perlin seed: {noise_seed}");
+    event!(Level::TRACE, %noise_seed);
     let scale = rng.d(20);
     let frequency = f64::from(scale) / config.size as f64;
-    println!("Frequency scale: {scale}, giving frequency: {frequency}");
+    event!(Level::TRACE, %scale, %frequency);
 
     let fbm = noise::Fbm::<noise::PerlinSurflet>::new(noise_seed).set_frequency(frequency);
-    println!(
-        "Perlin at (0.5, 0.5): {}, (size, size): {}",
-        fbm.get([0.5, 0.5]),
-        fbm.get([config.size as f64, config.size as f64])
+    event!(
+        Level::TRACE,
+        origin = fbm.get([0.0, 0.0]),
+        _0_5_0_5 = fbm.get([0.5, 0.5]),
+        size_size = fbm.get([config.size as f64, config.size as f64]),
+        "Noise values at"
     );
     let grid = hex::Grid::new_with_coords(config.size, config.size, |(col, row)| {
         fbm.get([col as f64, row as f64])
     })
     .unwrap();
-    println!(
-        "Grid of size {} created with seed '{}'",
-        config.size, &config.seed
-    );
-    println!("NaNs in grid? {}", grid.iter().any(|n| n.is_nan()));
+    event!(Level::TRACE, config.size, config.seed);
+    event!(Level::TRACE, nans_in_grid = grid.iter().any(|n| n.is_nan()));
     let grid_min = grid.iter().copied().fold(f64::INFINITY, f64::min);
     let grid_max = grid.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let grid_mean = grid.iter().sum::<f64>() / grid.len() as f64;
-    println!("Grid min: {grid_min:.3}, max: {grid_max:.3}, mean: {grid_mean:.3}");
+    event!(Level::TRACE, grid_min, grid_max, grid_mean);
     grid
 }
 
@@ -81,45 +88,89 @@ struct Config {
     /// size of grid (will be square)
     #[argh(option, default = "512")]
     size: usize,
+    /// image scale
+    #[argh(option, default = "1")]
+    scale: u32,
     /// output directory
     #[argh(option, default = "String::from(\"output/\")")]
     out_dir: String,
 }
 
 fn main() {
-    // const TIME_FMT = time::macros::format_description!("[hour]:[minute]:[second].[subsecond]");
     let config: Config = argh::from_env();
     let rng_master = medieval::rng::RngMaster::new(&config.seed);
-    let rng = rng_master.for_stage("m0");
 
-    tracing_subscriber::fmt()
-        // Display source code file paths
-        .with_file(true)
-        // Display source code line numbers
-        .with_line_number(true)
-        // Display the thread ID an event was recorded on
-        .with_thread_ids(false)
-        // Don't display the event's target (module path)
-        .with_target(false)
-        .with_span_events(FmtSpan::ACTIVE)
-        .with_timer(tracing_subscriber::fmt::time::UtcTime::new(
-            time::macros::format_description!("[hour]:[minute]:[second].[subsecond]"),
-        ))
-        .finish()
+    let run_dir_path = Path::new(&config.out_dir).join(&config.seed);
+    create_dir_all(&run_dir_path).unwrap();
+    let run_log_file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(run_dir_path.join("run.log"))
+        .unwrap();
+
+    tracing_subscriber::registry()
+        .with(
+            // stdout layer, timestamps have no date
+            fmt::layer()
+                .with_file(true)
+                .with_line_number(true)
+                .with_thread_ids(false)
+                .with_target(false)
+                .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+                .with_timer(tracing_subscriber::fmt::time::UtcTime::new(
+                    time::macros::format_description!("[hour]:[minute]:[second].[subsecond]"),
+                )),
+        )
+        .with(
+            // per-run file layer, no ansi colour codes
+            fmt::layer()
+                .fmt_fields(PrettyFields::new())
+                .with_file(true)
+                .with_line_number(true)
+                .with_thread_ids(false)
+                .with_target(false)
+                .with_ansi(false)
+                .compact()
+                .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+                .with_writer(run_log_file),
+        )
+        .with(EnvFilter::from_default_env())
         .init();
 
-    let n_grid = noise_grid(&config, rng);
-    render::render_f64_greyscale(n_grid, &config.seed, &config.out_dir).unwrap();
-
-    let r_grid = ring_grid(&config);
-    render::render_u8_greyscale(r_grid, &config.seed, &config.out_dir).unwrap();
+    let elevation_grid = generate(rng_master, config.size).unwrap();
+    render(
+        &elevation_grid,
+        to_greyscale,
+        config.scale,
+        &run_dir_path,
+        Path::new("elevation_greyscale"),
+    )
+    .unwrap();
+    render(
+        &elevation_grid,
+        brown_palette,
+        config.scale,
+        &run_dir_path,
+        Path::new("elevation_brown_palette"),
+    )
+    .unwrap();
+    render(
+        &elevation_grid,
+        brownscale,
+        config.scale,
+        &run_dir_path,
+        Path::new("elevation_brown_ramp"),
+    )
+    .unwrap();
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use medieval::rng;
     use rstest::rstest;
+
+    use super::*;
 
     // Checks that staged seeding, random number generation and grid are stable across updates.
     // Using a master seed of "Urist" (in honour of Dwarf Fortress), a stage name of "0", and a
@@ -142,10 +193,7 @@ mod tests {
         .unwrap();
         // break the grid to check test:
         // grid.set(10, 5.0);
-        let bytes = grid
-            .iter()
-            .flat_map(|f| f.to_be_bytes())
-            .collect::<Vec<u8>>();
+        let bytes = grid.iter().flat_map(|f| f.to_be_bytes()).collect::<Vec<u8>>();
         let hash = rng::hash_fnv_1a(&bytes);
         println!("Golden hash: {hash:x}");
         assert_eq!(GOLDEN_HASH, hash);

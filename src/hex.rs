@@ -55,10 +55,7 @@ impl HexAxial {
     #[must_use]
     pub fn from_oddq(col: i32, row: i32) -> HexAxial {
         let parity = col & 1;
-        HexAxial {
-            q: col,
-            r: row - (col - parity) / 2,
-        }
+        HexAxial { q: col, r: row - (col - parity) / 2 }
     }
 
     #[must_use]
@@ -128,18 +125,12 @@ impl<T> std::ops::DerefMut for Grid<T> {
     }
 }
 
-#[allow(
-    clippy::cast_sign_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap
-)]
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 // all casting here is checked as safe in new_empty
 impl<T> Grid<T> {
     fn new_empty(w: usize, h: usize) -> Result<Grid<T>, GridError> {
         if !(w > 0 && h > 0) {
-            return Err(GridError(
-                "Grid width and height cannot be zero".to_string(),
-            ));
+            return Err(GridError("Grid width and height cannot be zero".to_string()));
         }
         let wi = i32::try_from(w)
             .map_err(|_| GridError("Grid width too large (> i32::MAX)".to_string()))?;
@@ -148,16 +139,12 @@ impl<T> Grid<T> {
         let len = wi
             .checked_mul(hi)
             .ok_or_else(|| GridError("Grid width * height overflows i32".to_string()))?;
-        Ok(Grid {
-            w: wi,
-            h: hi,
-            store: Vec::<T>::with_capacity(len.try_into().unwrap()),
-        })
+        Ok(Grid { w: wi, h: hi, store: Vec::<T>::with_capacity(len.try_into().unwrap()) })
     }
 
     #[must_use]
-    pub fn dimensions(&self) -> (usize, usize) {
-        (self.w as usize, self.h as usize)
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.w as u32, self.h as u32)
     }
 
     fn bound(&self, idx: usize) -> bool {
@@ -182,11 +169,11 @@ impl<T> Grid<T> {
         HexAxial::from_oddq(col, row)
     }
 
-    fn coords(&self, idx: usize) -> Option<(usize, usize)> {
+    fn coords(&self, idx: usize) -> Option<(u32, u32)> {
         if !self.bound(idx) {
             return None;
         }
-        Some((idx % self.w as usize, idx / self.w as usize))
+        Some((idx as u32 % self.w as u32, idx as u32 / self.w as u32))
     }
 }
 
@@ -222,7 +209,7 @@ impl<T> Grid<T> {
         let mut grid: Grid<T> = Grid::new_empty(w, h)?;
         for j in 0..h {
             for i in 0..w {
-            grid.store.push(f((i, j)));
+                grid.store.push(f((i, j)));
             }
         }
         Ok(grid)
@@ -239,9 +226,7 @@ impl<T> Grid<T> {
         let mut grid: Grid<T> = Grid::new_empty(w, h)?;
         grid.store.extend(i.into_iter().take(w * h));
         if grid.store.len() != grid.store.capacity() {
-            return Err(GridError(
-                "iterator is not big enough to fill grid".to_string(),
-            ));
+            return Err(GridError("iterator is not big enough to fill grid".to_string()));
         }
         Ok(grid)
     }
@@ -263,6 +248,10 @@ impl<T> Grid<T> {
         T: PartialEq,
     {
         self.store.iter().position(|x| x == t)
+    }
+
+    pub fn iter_coords(&self) -> impl Iterator<Item = ((u32, u32), &T)> {
+        (0..self.len()).map(|i| self.coords(i).unwrap()).zip(self.iter())
     }
 
     // can return less than 6 neighbours if idx is at the edge, but cannot take an
@@ -304,7 +293,7 @@ impl<T> Grid<T> {
         result.into_iter()
     }
 
-    pub fn spiral(&self, idx: usize, n: u32) -> impl Iterator<Item = usize> + use<T>  {
+    pub fn spiral(&self, idx: usize, n: u32) -> impl Iterator<Item = usize> + use<T> {
         let mut result = Vec::<usize>::new();
         for i in 0..=n {
             result.extend(self.ring(idx, i));
@@ -315,8 +304,9 @@ impl<T> Grid<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::{fixture, rstest};
+
+    use super::*;
 
     #[fixture]
     fn origin() -> HexAxial {
@@ -417,14 +407,8 @@ mod tests {
         assert_eq!(kanji_grid.index(HexAxial { q: 2, r: 0 }), Some(18));
         assert_eq!(kanji_grid.index(HexAxial { q: 15, r: 0 }), Some(127));
 
-        assert_eq!(
-            kanji_grid.index(HexAxial { q: 3, r: -1 }.neighbour(Direction::SW)),
-            Some(18)
-        );
-        assert_eq!(
-            kanji_grid.index(HexAxial { q: 2, r: -1 }.neighbour(Direction::SW)),
-            Some(1)
-        );
+        assert_eq!(kanji_grid.index(HexAxial { q: 3, r: -1 }.neighbour(Direction::SW)), Some(18));
+        assert_eq!(kanji_grid.index(HexAxial { q: 2, r: -1 }.neighbour(Direction::SW)), Some(1));
 
         // out-of-bounds
         assert_eq!(kanji_grid.index(HexAxial { q: 0, r: 16 }), None);
@@ -513,9 +497,7 @@ mod tests {
             .collect();
         assert_eq!(
             spiral,
-            vec![
-                '森', '力', '気', '正', '数', '花', '草', '円', '水', '少', '多', '直'
-            ]
+            vec!['森', '力', '気', '正', '数', '花', '草', '円', '水', '少', '多', '直']
         );
     }
 }

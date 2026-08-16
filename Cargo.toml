@@ -11,7 +11,7 @@ noise = "0.9.0"
 rand = { version = "=0.10.2", features = ["chacha"] }
 time = { version = "0.3.55", features = ["formatting", "macros"] }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["time"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "time"] }
 
 [dev-dependencies]
 divan = "0.1.21"

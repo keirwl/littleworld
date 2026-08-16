@@ -22,9 +22,7 @@ pub struct RngMaster {
 impl RngMaster {
     #[must_use]
     pub fn new(seed: &str) -> RngMaster {
-        RngMaster {
-            master_seed: seed.into(),
-        }
+        RngMaster { master_seed: seed.into() }
     }
 
     #[must_use]
@@ -57,9 +55,10 @@ impl<T: RngExt + ?Sized> Dice for T {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::Rng;
     use rstest::{fixture, rstest};
+
+    use super::*;
 
     #[fixture]
     fn master() -> RngMaster {
