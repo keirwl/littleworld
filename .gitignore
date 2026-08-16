@@ -1,5 +1,6 @@
-resources
-output
+output/
+plan/
+resources/
 
 # Godot 4+ specific ignores
 .godot/
