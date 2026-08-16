@@ -129,6 +129,15 @@ you will profile erosion and will want symbols.
 
 ## Milestones
 
+> **Superseded as the working plan.** The route below is the reference, not the
+> schedule — its critical path to a colour map runs through tectonics, hydrology
+> and erosion, which is a year of evenings. [`plan/brief/`](../brief/plan.md) is
+> what's actually being followed: fBm → island → climate → land cover → relief,
+> five milestones to a showable map, after which the layers below slot back in
+> individually. This document is not deprecated — `plan/brief/next.md` points into
+> it for every stage it defers, and the specs here are what get followed when one
+> of those stages is picked up.
+
 Each ends in a PNG. Don't start the next until the current one looks right.
 
 | | Deliverable | Why it matters |

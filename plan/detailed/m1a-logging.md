@@ -51,14 +51,23 @@ you choose.
 
 Two `fmt` layers on one subscriber:
 
-- **stderr**, filtered by a repeatable `-v` flag, with `RUST_LOG` overriding it
+- **stdout**, filtered by a repeatable `-v` flag, with `RUST_LOG` overriding it
   when set. Default should be quiet enough that a successful run is a handful of
   lines.
 - **`<out>/<seed>/run.log`**, filtered separately and more permissively. Disk is
   cheap and the whole point is to still have the detail tomorrow.
 
-Note stderr, not stdout. Logs are diagnostics; if anything is ever piped out of
-this program it should be data.
+Stdout, not stderr. The usual convention reserves stdout for data so a program
+can be piped, but this program's output is PNG files on disk — nothing is ever
+written to stdout for another process to read, so the convention has nothing to
+protect here. Both streams look identical on a terminal, and Rust's stdout is
+line-buffered rather than block-buffered, so redirecting it to a file still shows
+lines as they happen.
+
+Keep the choice of writer in one place. The thing that would reverse this is a
+subcommand that emits data on stdout — resolved params printed rather than
+written, or region scores as CSV for a plotting script. If that arrives, moving
+the terminal layer to stderr should be one line.
 
 ### What goes at which level
 
@@ -82,7 +91,15 @@ layer needs the seed and the output directory, and both come from the CLI. So th
 order is: parse arguments, create the directory, install logging. Anything that
 fails before that — a bad flag, an unwritable output path — reports itself on
 plain stderr with no formatting, and that is acceptable. Don't contort the
-program to log its own startup.
+program to log its own startup. A side effect worth having: with the log on
+stdout, `medieval … > run.txt` captures the run but leaves a bad flag visible in
+the terminal rather than swallowing it into the file.
+
+**The file layer needs ANSI turned off.** `fmt` colours its output by default,
+which is what you want on screen and emphatically not what you want in
+`run.log` — escape sequences make it noisy in a pager and unpleasant to grep.
+The two layers differ in more than their filter, so resist the urge to build one
+and clone it.
 
 **Logging must not touch the output.** It must not consume the RNG, must not
 depend on iteration order in a way that changes it, and must not be load-bearing
@@ -120,7 +137,7 @@ M1a is done when:
 
 1. `cargo run --release -- --seed 42` writes `out/42/` containing `noise.png`,
    `rings.png` and `run.log`.
-2. A default run prints a few readable lines to stderr; `-vv` prints
+2. A default run prints a few readable lines to stdout; `-vv` prints
    substantially more; `RUST_LOG` overrides both.
 3. `run.log` contains stage names and durations without you having written any
    timing code.
