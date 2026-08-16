@@ -2,10 +2,12 @@
 use argh::FromArgs;
 use medieval::hex;
 use medieval::render;
-use medieval::rng::{Dice};
+use medieval::rng::Dice;
 use noise::{MultiFractal, NoiseFn};
 use rand::{prelude::*, rngs::ChaCha8Rng};
 use std::{fs::File, io::BufRead};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::util::SubscriberInitExt;
 
 struct Realm {
     size: u32,
@@ -13,20 +15,6 @@ struct Realm {
     population: u32,
     cities: Vec<u32>,
     num_towns: u32,
-}
-
-/// procgen
-#[derive(FromArgs)]
-struct Config {
-    /// master seed
-    #[argh(option, default = "get_seed_word()")]
-    seed: String,
-    /// size of grid (will be square)
-    #[argh(option, default = "512")]
-    size: usize,
-    /// output directory
-    #[argh(option, default = "String::from(\"output/\")")]
-    out_dir: String,
 }
 
 fn get_seed_word() -> String {
@@ -42,14 +30,13 @@ fn get_seed_word() -> String {
     words[idx].clone()
 }
 
+#[tracing::instrument]
 fn noise_grid(config: &Config, mut rng: ChaCha8Rng) -> hex::Grid<f64> {
     let noise_seed = rng.next_u32();
     println!("Perlin seed: {noise_seed}");
     let scale = rng.d(20);
     let frequency = f64::from(scale) / config.size as f64;
-    println!(
-        "Frequency scale: {scale}, giving frequency: {frequency}"
-    );
+    println!("Frequency scale: {scale}, giving frequency: {frequency}");
 
     let fbm = noise::Fbm::<noise::PerlinSurflet>::new(noise_seed).set_frequency(frequency);
     println!(
@@ -69,9 +56,7 @@ fn noise_grid(config: &Config, mut rng: ChaCha8Rng) -> hex::Grid<f64> {
     let grid_min = grid.iter().copied().fold(f64::INFINITY, f64::min);
     let grid_max = grid.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let grid_mean = grid.iter().sum::<f64>() / grid.len() as f64;
-    println!(
-        "Grid min: {grid_min:.3}, max: {grid_max:.3}, mean: {grid_mean:.3}"
-    );
+    println!("Grid min: {grid_min:.3}, max: {grid_max:.3}, mean: {grid_mean:.3}");
     grid
 }
 
@@ -87,10 +72,42 @@ fn ring_grid(config: &Config) -> hex::Grid<u8> {
     grid
 }
 
+/// Procedural generation of a medieval fantasy world
+#[derive(Debug, FromArgs)]
+struct Config {
+    /// master seed
+    #[argh(option, default = "get_seed_word()")]
+    seed: String,
+    /// size of grid (will be square)
+    #[argh(option, default = "512")]
+    size: usize,
+    /// output directory
+    #[argh(option, default = "String::from(\"output/\")")]
+    out_dir: String,
+}
+
 fn main() {
+    // const TIME_FMT = time::macros::format_description!("[hour]:[minute]:[second].[subsecond]");
     let config: Config = argh::from_env();
-    let rnger = medieval::rng::RngMaster::new(&config.seed);
-    let rng = rnger.for_stage("m0");
+    let rng_master = medieval::rng::RngMaster::new(&config.seed);
+    let rng = rng_master.for_stage("m0");
+
+    tracing_subscriber::fmt()
+        // Display source code file paths
+        .with_file(true)
+        // Display source code line numbers
+        .with_line_number(true)
+        // Display the thread ID an event was recorded on
+        .with_thread_ids(false)
+        // Don't display the event's target (module path)
+        .with_target(false)
+        .with_span_events(FmtSpan::ACTIVE)
+        .with_timer(tracing_subscriber::fmt::time::UtcTime::new(
+            time::macros::format_description!("[hour]:[minute]:[second].[subsecond]"),
+        ))
+        .finish()
+        .init();
+
     let n_grid = noise_grid(&config, rng);
     render::render_f64_greyscale(n_grid, &config.seed, &config.out_dir).unwrap();
 
