@@ -14,6 +14,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "time"] }
 
 [dev-dependencies]
+approx = "0.5.1"
 divan = "0.1.21"
 rstest = "0.26.1"
 

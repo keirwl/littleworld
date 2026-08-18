@@ -5,13 +5,13 @@ use std::path::Path;
 
 use argh::FromArgs;
 use medieval::generation::elevation::{brown_palette, brownscale, generate};
-use medieval::hex;
 use medieval::render::{render, to_greyscale};
 use medieval::rng::Dice;
+use medieval::{hex, render};
 use noise::{MultiFractal, NoiseFn};
 use rand::prelude::*;
 use rand::rngs::ChaCha8Rng;
-use tracing::{Level, event};
+use tracing::{Level, error, event, info};
 use tracing_subscriber::fmt::format::{FmtSpan, PrettyFields};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -89,11 +89,14 @@ struct Config {
     #[argh(option, default = "512")]
     size: usize,
     /// image scale
-    #[argh(option, default = "1")]
+    #[argh(option, default = "8")]
     scale: u32,
     /// output directory
     #[argh(option, default = "String::from(\"output/\")")]
     out_dir: String,
+    /// print square grid pixel output
+    #[argh(option, short = 'p', default = "false")]
+    pixel: bool,
 }
 
 fn main() {
@@ -138,11 +141,22 @@ fn main() {
         .with(EnvFilter::from_default_env())
         .init();
 
+    let print_format = if config.pixel {
+        render::Format::Pixel(config.scale)
+    } else if config.scale < 8 {
+        error!("Will lose information drawing hexes smaller than 8px");
+        return;
+    } else {
+        render::Format::Hex(config.scale)
+    };
+
+    info!(master_seed = config.seed, size = config.size, "Starting run");
+
     let elevation_grid = generate(rng_master, config.size).unwrap();
     render(
         &elevation_grid,
         to_greyscale,
-        config.scale,
+        print_format,
         &run_dir_path,
         Path::new("elevation_greyscale"),
     )
@@ -150,7 +164,7 @@ fn main() {
     render(
         &elevation_grid,
         brown_palette,
-        config.scale,
+        print_format,
         &run_dir_path,
         Path::new("elevation_brown_palette"),
     )
@@ -158,7 +172,7 @@ fn main() {
     render(
         &elevation_grid,
         brownscale,
-        config.scale,
+        print_format,
         &run_dir_path,
         Path::new("elevation_brown_ramp"),
     )

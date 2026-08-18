@@ -1,7 +1,7 @@
 use image::Rgb;
 use noise::{MultiFractal, NoiseFn};
 use rand::prelude::*;
-use tracing::{debug, trace};
+use tracing::{info, trace};
 
 use crate::hex::Grid;
 use crate::rng::{Dice, RngMaster};
@@ -16,12 +16,12 @@ struct RgbLerpPoints {
 
 #[rustfmt::skip]
 const BROWN_LERP: [RgbLerpPoints; 6] = [
-    RgbLerpPoints{d: 0.0, r: 0x0, g: 0x0, b: 0x0 },
-    RgbLerpPoints{d: 0.2, r: 0x1a, g: 0x1a, b: 0x1a },
-    RgbLerpPoints{d: 0.4, r: 0x4a, g: 0x35, b: 0x20 },
-    RgbLerpPoints{d: 0.6, r: 0x8b, g: 0x62, b: 0x39 },
-    RgbLerpPoints{d: 0.8, r: 0xc2, g: 0xa2, b: 0x78 },
-    RgbLerpPoints{d: 1.0, r: 0xff, g: 0xff, b: 0xff },
+    RgbLerpPoints { d: 0.0, r: 0x00, g: 0x00, b: 0x00 },
+    RgbLerpPoints { d: 0.2, r: 0x1a, g: 0x1a, b: 0x1a },
+    RgbLerpPoints { d: 0.4, r: 0x4a, g: 0x35, b: 0x20 },
+    RgbLerpPoints { d: 0.6, r: 0x8b, g: 0x62, b: 0x39 },
+    RgbLerpPoints { d: 0.8, r: 0xc2, g: 0xa2, b: 0x78 },
+    RgbLerpPoints { d: 1.0, r: 0xff, g: 0xff, b: 0xff },
 ];
 
 // expects input in range -1.0 to 1.0, as returned by NoiseFn
@@ -68,14 +68,14 @@ pub fn brown_palette(i: &f64) -> Rgb<u8> {
     Rgb([point.r, point.g, point.b])
 }
 
-#[tracing::instrument]
+#[tracing::instrument(level = "debug")]
 pub fn generate(rng_master: RngMaster, size: usize) -> Result<Grid<f64>, String> {
     let mut rng = rng_master.for_stage("elevation");
     let noise_seed = rng.next_u32();
     trace!(%noise_seed);
     let scale = rng.d(20);
     let frequency = f64::from(scale) / size as f64;
-    debug!(%scale, "Randomly-chosen parameter for elevation noise");
+    info!(%scale, "Randomly-chosen parameter for elevation noise");
 
     let fbm = noise::Fbm::<noise::PerlinSurflet>::new(noise_seed).set_frequency(frequency);
     trace!(
@@ -84,8 +84,7 @@ pub fn generate(rng_master: RngMaster, size: usize) -> Result<Grid<f64>, String>
         size_size = fbm.get([size as f64, size as f64]),
         "Noise values at"
     );
-    let grid =
-        Grid::new_with_coords(size, size, |(col, row)| fbm.get([col as f64, row as f64])).unwrap();
+    let grid = Grid::new_with_world_coords(size, size, |(col, row)| fbm.get([col, row])).unwrap();
     trace!(nans_in_grid = grid.iter().any(|n| n.is_nan()));
     let grid_min = grid.iter().copied().fold(f64::INFINITY, f64::min);
     let grid_max = grid.iter().copied().fold(f64::NEG_INFINITY, f64::max);

@@ -5,6 +5,8 @@
 #![allow(dead_code)]
 use derive_more::{Add, Div, From, Mul, Sub};
 
+use crate::util::SQRT_3;
+
 #[derive(Add, Sub, Mul, Div, From, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HexAxial {
     pub q: i32,
@@ -62,6 +64,12 @@ impl HexAxial {
     pub fn to_oddq(&self) -> (i32, i32) {
         let parity = self.q & 1;
         (self.q, self.r + (self.q - parity) / 2)
+    }
+
+    pub fn to_world_coords(&self) -> (f64, f64) {
+        let x: f64 = 3.0 / 2.0 * self.q as f64;
+        let y: f64 = SQRT_3 * (self.q as f64 / 2.0 + self.r as f64);
+        (x, y)
     }
 
     // distance from the origin. Called "length" because
@@ -215,6 +223,19 @@ impl<T> Grid<T> {
         Ok(grid)
     }
 
+    pub fn new_with_world_coords(
+        w: usize,
+        h: usize,
+        mut f: impl FnMut((f64, f64)) -> T,
+    ) -> Result<Grid<T>, GridError> {
+        let mut grid: Grid<T> = Grid::new_empty(w, h)?;
+        for i in 0..w * h {
+            let (x, y) = grid.world_coords(i).unwrap();
+            grid.store.push(f((x, y)));
+        }
+        Ok(grid)
+    }
+
     pub fn new_from(
         w: usize,
         h: usize,
@@ -252,6 +273,17 @@ impl<T> Grid<T> {
 
     pub fn iter_coords(&self) -> impl Iterator<Item = ((u32, u32), &T)> {
         (0..self.len()).map(|i| self.coords(i).unwrap()).zip(self.iter())
+    }
+
+    pub fn world_coords(&self, idx: usize) -> Option<(f64, f64)> {
+        if !self.bound(idx) {
+            return None;
+        }
+        Some(self.at(idx).to_world_coords())
+    }
+
+    pub fn iter_world_coords(&self) -> impl Iterator<Item = ((f64, f64), &T)> {
+        (0..self.len()).map(|i| self.world_coords(i).unwrap()).zip(self.iter())
     }
 
     // can return less than 6 neighbours if idx is at the edge, but cannot take an
@@ -304,6 +336,7 @@ impl<T> Grid<T> {
 
 #[cfg(test)]
 mod tests {
+    use approx::assert_abs_diff_eq;
     use rstest::{fixture, rstest};
 
     use super::*;
@@ -343,6 +376,19 @@ mod tests {
     fn test_hex_neighbour(origin: HexAxial, #[case] dir: Direction, #[case] hex: HexAxial) {
         assert_eq!(origin.neighbour(dir), hex);
         assert_eq!(origin.distance(hex), 1);
+    }
+
+    #[rstest]
+    #[case((0, 0), (0.0, 0.0))]
+    #[case((1, 0), (1.5, SQRT_3/2.0))]
+    #[case((2, 0), (3.0, 0.0))]
+    #[case((0, 1), (0.0, SQRT_3))]
+    #[case((511, 0), (766.5, SQRT_3/2.0))]
+    fn test_hex_world_coords(#[case] oddq: (i32, i32), #[case] expected: (f64, f64)) {
+        let hex = HexAxial::from_oddq(oddq.0, oddq.1);
+        let (x, y) = hex.to_world_coords();
+        assert_abs_diff_eq!(expected.0, x);
+        assert_abs_diff_eq!(expected.1, y);
     }
 
     /* With our flat-topped, odd-q arrangement, a rectangle has single-hex
