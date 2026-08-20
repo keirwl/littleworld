@@ -6,10 +6,10 @@ use tracing::trace;
 use crate::hex::Grid;
 use crate::util::SQRT_3;
 
-// expects input in range -1.0 to 1.0, as returned by NoiseFn
+// expects input normalised to 0.0 to 1.0
 #[allow(clippy::cast_possible_truncation)]
 pub fn to_greyscale(i: &f64) -> Rgb<u8> {
-    let b = ((i + 1.0) * 128.0).floor() as u8;
+    let b = (i * 255.0).round() as u8;
     Rgb([b, b, b])
 }
 
@@ -104,6 +104,11 @@ mod tests {
 
     #[rstest]
     fn test_greyscale_min() {
+        assert_eq!(to_greyscale(&0.0), Rgb([0, 0, 0]));
+    }
+
+    #[rstest]
+    fn test_greyscale_neg() {
         assert_eq!(to_greyscale(&-1.0), Rgb([0, 0, 0]));
     }
 

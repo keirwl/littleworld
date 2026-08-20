@@ -118,6 +118,11 @@ impl std::fmt::Display for GridError {
         write!(f, "{}", self.0)
     }
 }
+impl From<GridError> for String {
+    fn from(value: GridError) -> Self {
+        value.0
+    }
+}
 
 // gives us many of the methods on Vec
 impl<T> std::ops::Deref for Grid<T> {

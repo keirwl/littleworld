@@ -4,7 +4,7 @@ use std::io::BufRead;
 use std::path::Path;
 
 use argh::FromArgs;
-use medieval::generation::elevation::{brown_palette, brownscale, generate};
+use medieval::generation::elevation::{brown_palette, brownscale, colour_land_sea, generate};
 use medieval::render::{render, to_greyscale};
 use medieval::rng::Dice;
 use medieval::{hex, render};
@@ -175,6 +175,14 @@ fn main() {
         print_format,
         &run_dir_path,
         Path::new("elevation_brown_ramp"),
+    )
+    .unwrap();
+    render(
+        &elevation_grid,
+        colour_land_sea,
+        print_format,
+        &run_dir_path,
+        Path::new("elevation"),
     )
     .unwrap();
 }
