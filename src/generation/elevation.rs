@@ -11,50 +11,6 @@ use crate::rng::{Dice, RngMaster};
 use crate::util::{RgbLerpPoints, lerp, normalise, smootherstep};
 
 #[rustfmt::skip]
-const BROWN_LERP: [RgbLerpPoints; 6] = [
-    RgbLerpPoints { d: 0.0, r: 0x00, g: 0x00, b: 0x00 },
-    RgbLerpPoints { d: 0.2, r: 0x1a, g: 0x1a, b: 0x1a },
-    RgbLerpPoints { d: 0.4, r: 0x4a, g: 0x35, b: 0x20 },
-    RgbLerpPoints { d: 0.6, r: 0x8b, g: 0x62, b: 0x39 },
-    RgbLerpPoints { d: 0.8, r: 0xc2, g: 0xa2, b: 0x78 },
-    RgbLerpPoints { d: 1.0, r: 0xff, g: 0xff, b: 0xff },
-];
-
-#[tracing::instrument(level = "trace")]
-pub fn brownscale(i: &f64) -> Rgb<u8> {
-    let mut lower = BROWN_LERP[0];
-    let mut upper = BROWN_LERP[0];
-    for p in BROWN_LERP {
-        lower = upper;
-        upper = p;
-        if *i <= p.d {
-            break;
-        }
-    }
-    trace!(?lower, ?upper);
-    let f = (i - lower.d) / (upper.d - lower.d);
-    trace!(i, ?lower.d, ?upper.d, f);
-    Rgb([
-        (lower.r as f64 + (upper.r as f64 - lower.r as f64) * f).clamp(0.0, 255.0) as u8,
-        (lower.g as f64 + (upper.g as f64 - lower.g as f64) * f).clamp(0.0, 255.0) as u8,
-        (lower.b as f64 + (upper.b as f64 - lower.b as f64) * f).clamp(0.0, 255.0) as u8,
-    ])
-}
-
-#[tracing::instrument(level = "trace")]
-pub fn brown_palette(i: &f64) -> Rgb<u8> {
-    let mut point: RgbLerpPoints = BROWN_LERP[0];
-    for p in BROWN_LERP {
-        point = p;
-        if *i <= point.d {
-            break;
-        }
-    }
-    trace!(?point);
-    Rgb([point.r, point.g, point.b])
-}
-
-#[rustfmt::skip]
 const WATER_LERP: [RgbLerpPoints; 4] = [
     RgbLerpPoints { d: -1.00, r: 0x5e, g: 0x8f, b: 0xbf }, // deep
     RgbLerpPoints { d: -0.40, r: 0x8a, g: 0xba, b: 0xe3 }, // mid
@@ -144,7 +100,7 @@ fn make_shape_grid(
 }
 
 #[tracing::instrument(level = "debug")]
-pub fn generate(rng_master: RngMaster, size: usize) -> Result<Grid<f64>, String> {
+pub fn generate(rng_master: &RngMaster, size: usize) -> Result<Grid<f64>, String> {
     let mut rng = rng_master.for_stage("elevation");
     let noise_seed = rng.next_u32();
     trace!(%noise_seed);
@@ -201,11 +157,11 @@ pub fn generate(rng_master: RngMaster, size: usize) -> Result<Grid<f64>, String>
     trace!(min, max, sea_level);
 
     // normalise so that above sea level goes to +1, below to -1
-    for e in grid.iter_mut() {
-        if *e > sea_level {
-            *e = (*e - sea_level) / (max - sea_level);
+    for elev in grid.iter_mut() {
+        if *elev > sea_level {
+            *elev = (*elev - sea_level) / (max - sea_level);
         } else {
-            *e = (*e - sea_level) / (sea_level - min);
+            *elev = (*elev - sea_level) / (sea_level - min);
         }
     }
 

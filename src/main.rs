@@ -1,17 +1,14 @@
 #![allow(dead_code)]
 use std::fs::{File, OpenOptions, create_dir_all};
-use std::io::BufRead;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use argh::FromArgs;
-use medieval::generation::elevation::{colour_land_sea, generate};
-use medieval::render::{render, to_greyscale};
-use medieval::rng::Dice;
-use medieval::{hex, render};
-use noise::{MultiFractal, NoiseFn};
+use littleworld::generation::elevation::{colour_land_sea, generate};
+use littleworld::render::{Format, render, to_greyscale};
+use littleworld::rng::RngMaster;
 use rand::prelude::*;
-use rand::rngs::ChaCha8Rng;
-use tracing::{Level, error, event, info};
+use tracing::{error, info};
 use tracing_subscriber::fmt::format::{FmtSpan, PrettyFields};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -25,9 +22,17 @@ struct Realm {
     num_towns: u32,
 }
 
+fn get_seed_hex() -> String {
+    let seed = rand::rng().next_u64();
+    format!("{:x?}", seed)
+}
+
 fn get_seed_word() -> String {
-    let word_file = std::io::BufReader::new(File::open("/usr/share/dict/linux.words").unwrap());
-    let words: Vec<String> = word_file
+    let word_file = File::open("/usr/share/dict/words");
+    if word_file.is_err() {
+        return get_seed_hex();
+    }
+    let words: Vec<String> = BufReader::new(word_file.unwrap())
         .lines()
         .map_while(Result::ok)
         .filter(|l| *l == l.to_lowercase())
@@ -36,47 +41,6 @@ fn get_seed_word() -> String {
         .collect();
     let idx = rand::rng().random_range(0..words.len());
     words[idx].clone()
-}
-
-#[tracing::instrument]
-fn noise_grid(config: &Config, mut rng: ChaCha8Rng) -> hex::Grid<f64> {
-    let noise_seed = rng.next_u32();
-    event!(Level::TRACE, %noise_seed);
-    let scale = rng.d(20);
-    let frequency = f64::from(scale) / config.size as f64;
-    event!(Level::TRACE, %scale, %frequency);
-
-    let fbm = noise::Fbm::<noise::PerlinSurflet>::new(noise_seed).set_frequency(frequency);
-    event!(
-        Level::TRACE,
-        origin = fbm.get([0.0, 0.0]),
-        _0_5_0_5 = fbm.get([0.5, 0.5]),
-        size_size = fbm.get([config.size as f64, config.size as f64]),
-        "Noise values at"
-    );
-    let grid = hex::Grid::new_with_coords(config.size, config.size, |(col, row)| {
-        fbm.get([col as f64, row as f64])
-    })
-    .unwrap();
-    event!(Level::TRACE, config.size, config.seed);
-    event!(Level::TRACE, nans_in_grid = grid.iter().any(|n| n.is_nan()));
-    let grid_min = grid.iter().copied().fold(f64::INFINITY, f64::min);
-    let grid_max = grid.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let grid_mean = grid.iter().sum::<f64>() / grid.len() as f64;
-    event!(Level::TRACE, grid_min, grid_max, grid_mean);
-    grid
-}
-
-fn ring_grid(config: &Config) -> hex::Grid<u8> {
-    let mut grid = hex::Grid::<u8>::new_filled(config.size, config.size, 0).unwrap();
-    let middle_idx = (config.size * config.size / 2) + (config.size / 2 - 1);
-    for n in 0..8 {
-        let colour: u8 = if n == 0 { 0 } else { (32 * n) - 1 };
-        for i in grid.ring(middle_idx, u32::from(n)) {
-            grid.set(i, colour).unwrap();
-        }
-    }
-    grid
 }
 
 /// Procedural generation of a medieval fantasy world
@@ -101,7 +65,7 @@ struct Config {
 
 fn main() {
     let config: Config = argh::from_env();
-    let rng_master = medieval::rng::RngMaster::new(&config.seed);
+    let rng_master = RngMaster::new(&config.seed);
     let mut _test_rng = rng_master.for_stage("test");
 
     let run_dir_path = Path::new(&config.out_dir).join(&config.seed);
@@ -143,17 +107,17 @@ fn main() {
         .init();
 
     let print_format = if config.pixel {
-        render::Format::Pixel(config.scale)
+        Format::Pixel(config.scale)
     } else if config.scale < 8 {
         error!("Will lose information drawing hexes smaller than 8px");
         return;
     } else {
-        render::Format::Hex(config.scale)
+        Format::Hex(config.scale)
     };
 
     info!(master_seed = config.seed, size = config.size, "Starting run");
 
-    let elevation_grid = generate(rng_master, config.size).unwrap();
+    let elevation_grid = generate(&rng_master, config.size).unwrap();
     render(
         &elevation_grid,
         to_greyscale,
@@ -168,7 +132,8 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use medieval::rng;
+    use littleworld::{hex, rng};
+    use noise::{Fbm, MultiFractal, NoiseFn};
     use rstest::rstest;
 
     use super::*;
@@ -185,8 +150,8 @@ mod tests {
         const GOLDEN_STAGE: &str = "0";
         const GOLDEN_SIZE: usize = 256;
         const GOLDEN_HASH: u64 = 0xaff27af64ef26a64;
-        let mut rng = medieval::rng::RngMaster::new(GOLDEN_SEED).for_stage(GOLDEN_STAGE);
-        let fbm = noise::Fbm::<noise::PerlinSurflet>::new(rng.next_u32())
+        let mut rng = RngMaster::new(GOLDEN_SEED).for_stage(GOLDEN_STAGE);
+        let fbm = Fbm::<noise::PerlinSurflet>::new(rng.next_u32())
             .set_frequency(1.0 / GOLDEN_SIZE as f64);
         let grid = hex::Grid::new_with_coords(GOLDEN_SIZE, GOLDEN_SIZE, |(col, row)| {
             fbm.get([col as f64, row as f64])

@@ -82,7 +82,8 @@ impl HexAxial {
     }
 
     // redblobgames showed two equivalent ways of getting length,
-    // benchmarking found this one to be slightly slower
+    // benchmarking found this one to be slightly slower.
+    // kept for posterity, such that the benchmark can remain
     #[must_use]
     pub fn length_max(&self) -> i32 {
         let (q, r, s) = self.cube();
@@ -259,10 +260,7 @@ impl<T> Grid<T> {
     }
 
     // returns Err(attempted value) if out-of-bounds
-    pub fn set(&mut self, idx: usize, t: T) -> Result<(), T>
-    where
-        T: Copy,
-    {
+    pub fn set(&mut self, idx: usize, t: T) -> Result<(), T> {
         if !self.bound(idx) {
             return Err(t);
         }

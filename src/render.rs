@@ -18,7 +18,7 @@ where
     F: Fn(&T) -> Rgb<u8>,
 {
     let (width, height) = grid.dimensions();
-    let mut image = image::RgbImage::new(width * scale, height * scale);
+    let mut image = RgbImage::new(width * scale, height * scale);
 
     for ((col, row), t) in grid.iter_coords() {
         let pixel = colour_map(t);
@@ -41,7 +41,7 @@ where
     let image_w = (1.5 * r * (grid_w as f64 - 1.0) + 2.0 * r).ceil() as u32;
     let image_h = (SQRT_3 * r * (grid_h as f64 + 0.5)).ceil() as u32;
     trace!(grid_w, grid_h, image_w, image_h);
-    let mut image = image::RgbImage::from_pixel(image_w, image_h, Rgb([255, 0, 255]));
+    let mut image = RgbImage::from_pixel(image_w, image_h, Rgb([0, 0, 0]));
 
     for ((x, y), t) in grid.iter_world_coords() {
         let colour = colour_map(t);

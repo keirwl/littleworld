@@ -1,4 +1,4 @@
-use medieval::hex::HexAxial;
+use littleworld::hex::HexAxial;
 
 fn main() {
     divan::main();
