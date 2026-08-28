@@ -4,12 +4,12 @@ use image::{ImageError, Rgb, RgbImage};
 use tracing::trace;
 
 use crate::hex::Grid;
-use crate::util::SQRT_3;
+use crate::util::{SQRT_3, normalise};
 
-// expects input normalised to 0.0 to 1.0
+#[inline]
 #[allow(clippy::cast_possible_truncation)]
 pub fn to_greyscale(i: &f64) -> Rgb<u8> {
-    let b = (i * 255.0).round() as u8;
+    let b = (normalise(*i) * 255.0).round() as u8;
     Rgb([b, b, b])
 }
 
@@ -76,7 +76,7 @@ pub enum Format {
     Hex(u32),
 }
 
-#[tracing::instrument(level = "debug", skip_all, fields(name = ?name, colour_map_name = std::any::type_name::<F>(), format = ?render_format))]
+// #[tracing::instrument(level = "debug", skip_all, fields(name = ?name, colour_map_name = std::any::type_name::<F>(), format = ?render_format))]
 pub fn render<T, F>(
     grid: &Grid<T>,
     colour_map: F,
@@ -104,12 +104,12 @@ mod tests {
 
     #[rstest]
     fn test_greyscale_min() {
-        assert_eq!(to_greyscale(&0.0), Rgb([0, 0, 0]));
+        assert_eq!(to_greyscale(&-1.0), Rgb([0, 0, 0]));
     }
 
     #[rstest]
-    fn test_greyscale_neg() {
-        assert_eq!(to_greyscale(&-1.0), Rgb([0, 0, 0]));
+    fn test_greyscale_mid() {
+        assert_eq!(to_greyscale(&0.0), Rgb([128, 128, 128]));
     }
 
     #[rstest]

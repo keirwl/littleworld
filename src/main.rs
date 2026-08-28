@@ -4,7 +4,7 @@ use std::io::BufRead;
 use std::path::Path;
 
 use argh::FromArgs;
-use medieval::generation::elevation::{brown_palette, brownscale, colour_land_sea, generate};
+use medieval::generation::elevation::{colour_land_sea, generate};
 use medieval::render::{render, to_greyscale};
 use medieval::rng::Dice;
 use medieval::{hex, render};
@@ -102,6 +102,7 @@ struct Config {
 fn main() {
     let config: Config = argh::from_env();
     let rng_master = medieval::rng::RngMaster::new(&config.seed);
+    let mut _test_rng = rng_master.for_stage("test");
 
     let run_dir_path = Path::new(&config.out_dir).join(&config.seed);
     create_dir_all(&run_dir_path).unwrap();
@@ -161,30 +162,8 @@ fn main() {
         Path::new("elevation_greyscale"),
     )
     .unwrap();
-    render(
-        &elevation_grid,
-        brown_palette,
-        print_format,
-        &run_dir_path,
-        Path::new("elevation_brown_palette"),
-    )
-    .unwrap();
-    render(
-        &elevation_grid,
-        brownscale,
-        print_format,
-        &run_dir_path,
-        Path::new("elevation_brown_ramp"),
-    )
-    .unwrap();
-    render(
-        &elevation_grid,
-        colour_land_sea,
-        print_format,
-        &run_dir_path,
-        Path::new("elevation"),
-    )
-    .unwrap();
+    render(&elevation_grid, colour_land_sea, print_format, &run_dir_path, Path::new("elevation"))
+        .unwrap();
 }
 
 #[cfg(test)]

@@ -1,6 +1,8 @@
 output/
 plan/
 resources/
+notes*
+profile*
 
 # Godot 4+ specific ignores
 .godot/

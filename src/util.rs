@@ -1,5 +1,4 @@
 use image::Rgb;
-use tracing::trace;
 
 pub const SQRT_3: f64 = 1.7320508075688772;
 
@@ -11,26 +10,33 @@ pub struct RgbLerpPoints {
     pub b: u8,
 }
 
-#[tracing::instrument(level = "trace")]
+// #[tracing::instrument(level = "trace")]
+#[inline]
 pub fn lerp(points: &[RgbLerpPoints], i: &f64) -> Rgb<u8> {
     let mut lower = points[0];
-    if *i <= 0.0 {
-        return Rgb([lower.r, lower.g, lower.b]);
-    }
-    let mut upper = points[0];
-    for p in points {
-        lower = upper;
-        upper = *p;
-        if *i <= p.d {
+    let mut upper = points[1];
+    for w in points.windows(2) {
+        (lower, upper) = (w[0], w[1]);
+        if *i <= upper.d {
             break;
         }
     }
-    trace!(?lower, ?upper);
     let f = (i - lower.d) / (upper.d - lower.d);
-    trace!(i, ?lower.d, ?upper.d, f);
     Rgb([
         (lower.r as f64 + (upper.r as f64 - lower.r as f64) * f).clamp(0.0, 255.0) as u8,
         (lower.g as f64 + (upper.g as f64 - lower.g as f64) * f).clamp(0.0, 255.0) as u8,
         (lower.b as f64 + (upper.b as f64 - lower.b as f64) * f).clamp(0.0, 255.0) as u8,
     ])
+}
+
+#[inline]
+pub fn smootherstep(x: f64, min: f64, max: f64) -> f64 {
+    let x = ((x - min) / (max - min)).clamp(0.0, 1.0);
+    x * x * x * (x * (6.0 * x - 15.0) + 10.0)
+}
+
+// expects input in range -1.0 to 1.0, as returned by NoiseFn
+#[inline]
+pub fn normalise(i: f64) -> f64 {
+    (i + 1.0) / 2.0
 }

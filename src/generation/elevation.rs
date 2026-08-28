@@ -1,11 +1,14 @@
+use std::f64::consts;
+
 use image::Rgb;
 use noise::{MultiFractal, NoiseFn};
 use rand::prelude::*;
 use tracing::{info, trace};
 
+use crate::generation::elevation::LandmassType::Island;
 use crate::hex::Grid;
 use crate::rng::{Dice, RngMaster};
-use crate::util::{RgbLerpPoints, lerp};
+use crate::util::{RgbLerpPoints, lerp, normalise, smootherstep};
 
 #[rustfmt::skip]
 const BROWN_LERP: [RgbLerpPoints; 6] = [
@@ -16,13 +19,6 @@ const BROWN_LERP: [RgbLerpPoints; 6] = [
     RgbLerpPoints { d: 0.8, r: 0xc2, g: 0xa2, b: 0x78 },
     RgbLerpPoints { d: 1.0, r: 0xff, g: 0xff, b: 0xff },
 ];
-
-// expects input in range -1.0 to 1.0, as returned by NoiseFn
-// clamp shouldn't be necessary, but just-in-case
-#[inline(always)]
-fn normalise(i: f64) -> f64 {
-    (i + 1.0) / 2.0 // .clamp(0.0, 1.0)
-}
 
 #[tracing::instrument(level = "trace")]
 pub fn brownscale(i: &f64) -> Rgb<u8> {
@@ -79,11 +75,72 @@ const LAND_LERP: [RgbLerpPoints; 8] = [
 ];
 
 pub fn colour_land_sea(i: &f64) -> Rgb<u8> {
-    if *i > 0.0 {
-        lerp(&LAND_LERP, i)
-    } else {
-        lerp(&WATER_LERP, i)
+    if *i > 0.0 { lerp(&LAND_LERP, i) } else { lerp(&WATER_LERP, i) }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum LandmassType {
+    FullRandom,
+    Peninsula,
+    Island,
+    Coast,
+    Bay,
+}
+
+impl TryFrom<u32> for LandmassType {
+    type Error = String;
+    fn try_from(i: u32) -> Result<LandmassType, Self::Error> {
+        match i {
+            0 => Ok(LandmassType::FullRandom),
+            1 => Ok(LandmassType::Peninsula),
+            2 => Ok(LandmassType::Island),
+            3 => Ok(LandmassType::Coast),
+            4 => Ok(LandmassType::Bay),
+            _ => Err("No such landmass type".into()),
+        }
     }
+}
+
+// scales the perturbation to this amount
+const PERTURBATION: f64 = 0.2;
+
+#[tracing::instrument(level = "trace", skip_all, fields(x = x, y = y))]
+fn perturb_by_angle(noise_gen: &impl NoiseFn<f64, 1>, x: f64, y: f64) -> f64 {
+    if x == 0.0 && y == 0.0 {
+        return 1.0;
+    }
+    let angle = (y.atan2(x) + consts::PI) / consts::TAU; // in turns
+    let noise = noise_gen.get([angle]) * PERTURBATION + 1.0;
+    trace!(angle, noise);
+    noise
+}
+
+#[tracing::instrument(level = "trace", skip_all, fields(landmass_type = ?kind))]
+fn make_shape_grid(
+    width: usize,
+    height: usize,
+    kind: LandmassType,
+    mut rng: impl RngExt,
+) -> Result<Grid<f64>, String> {
+    // unit type grid allows us to easily calculate some values before we fill a real one
+    let geometry_grid = Grid::new_filled(width, height, ())?;
+    let (mid_x, mid_y) = geometry_grid.world_coords(geometry_grid.midpoint()).unwrap();
+    let (max_x, max_y) = geometry_grid.max_world_coords();
+    let max_dist = f64::sqrt((max_x - mid_x).powi(2) + (max_y - mid_y).powi(2));
+
+    let noise_gen = noise::Perlin::new(rng.next_u32());
+
+    let shape_func = |(x, y): (f64, f64)| match kind {
+        Island => {
+            let dist = f64::sqrt((x - mid_x).powi(2) + (y - mid_y).powi(2));
+            let dist = max_dist - dist * perturb_by_angle(&noise_gen, x - mid_x, y - mid_y);
+            smootherstep(dist, 0.0, max_dist)
+        }
+        _ => 1.0,
+    };
+
+    let shape_grid = Grid::new_with_world_coords(width, height, shape_func)?;
+    Ok(shape_grid)
 }
 
 #[tracing::instrument(level = "debug")]
@@ -103,6 +160,17 @@ pub fn generate(rng_master: RngMaster, size: usize) -> Result<Grid<f64>, String>
         "Noise values at"
     );
 
+    // overall shape of land (island, peninsula, etc) is guided by a "shape grid"
+    // of values to multiply the noise-generated elevation by
+    let landmass = LandmassType::Island;
+    let shape_grid = make_shape_grid(size, size, landmass, &mut rng)?;
+    trace!(nans_in_grid = shape_grid.iter().any(|n| n.is_nan()));
+    trace!(
+        grid_min = shape_grid.iter().copied().fold(f64::INFINITY, f64::min),
+        grid_max = shape_grid.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        grid_mean = shape_grid.iter().sum::<f64>() / shape_grid.len() as f64,
+    );
+
     // raising the noise to an exponent e changes overall shape:
     // e < 1 raises bottom, giving rolling highlands
     // e > 1 lowers bottom, giving flat valley bottoms
@@ -112,26 +180,25 @@ pub fn generate(rng_master: RngMaster, size: usize) -> Result<Grid<f64>, String>
     // redblobgames recommends multiplying by a fudge factor first
     // also, we need to normalise to 0 <= n <= 1
     const FUDGE: f64 = 1.2;
-    let mut grid = Grid::new_with_world_coords(size, size, |(x, y)| {
-        let n = normalise(fbm.get([x, y]));
-        (n * FUDGE).powf(e)
-    })?;
-    trace!(nans_in_grid = grid.iter().any(|n| n.is_nan()));
-    trace!(
-        grid_min = grid.iter().copied().fold(f64::INFINITY, f64::min),
-        grid_max = grid.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-        grid_mean = grid.iter().sum::<f64>() / grid.len() as f64,
-    );
 
+    let mut grid = Grid::new_with_index(size, size, |idx| {
+        let (x, y) = shape_grid.world_coords(idx).unwrap();
+        let n = (normalise(fbm.get([x, y])) * FUDGE).powf(e);
+        n * shape_grid[idx]
+    })?;
+
+    // instead of picking a height to be sea level, instead choose the fraction
+    // of map to be land, and derive sea level from that
     let mut sorted = grid.iter().copied().collect::<Vec<f64>>();
-    sorted.sort_by(f64::total_cmp);
     let land_fraction: f64 = rng.random();
     info!(%land_fraction, "Randomly-chosen parameter for land fraction");
+    sorted.sort_by(f64::total_cmp);
     let shore_idx = (sorted.len() as f64 * (1.0 - land_fraction)) as usize;
     let sea_level = sorted[shore_idx];
 
     let min = sorted[0];
     let max = sorted[sorted.len() - 1];
+    trace!(min, max, sea_level);
 
     // normalise so that above sea level goes to +1, below to -1
     for e in grid.iter_mut() {

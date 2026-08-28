@@ -21,3 +21,10 @@ rstest = "0.26.1"
 [[bench]]
 name = "hex_length"
 harness = false
+
+[profile.release]
+debug = "line-tables-only"
+
+[profile.samply]
+inherits = "release"
+debug = true

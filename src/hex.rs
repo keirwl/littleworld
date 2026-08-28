@@ -49,6 +49,7 @@ impl TryFrom<usize> for Direction {
 }
 
 impl HexAxial {
+    #[inline]
     #[must_use]
     pub fn cube(&self) -> (i32, i32, i32) {
         (self.q, self.r, -self.q - self.r)
@@ -276,6 +277,10 @@ impl<T> Grid<T> {
         self.store.iter().position(|x| x == t)
     }
 
+    pub fn midpoint(&self) -> usize {
+        if self.w & 1 == 0 { self.len() / 2 + self.w as usize / 2 } else { self.len() / 2 }
+    }
+
     pub fn iter_coords(&self) -> impl Iterator<Item = ((u32, u32), &T)> {
         (0..self.len()).map(|i| self.coords(i).unwrap()).zip(self.iter())
     }
@@ -285,6 +290,16 @@ impl<T> Grid<T> {
             return None;
         }
         Some(self.at(idx).to_world_coords())
+    }
+
+    pub fn max_world_coords(&self) -> (f64, f64) {
+        if self.w & 1 == 0 {
+            self.world_coords(self.len() - 1).unwrap()
+        } else {
+            let (max_x, _) = self.world_coords(self.len() - 1).unwrap();
+            let (_, max_y) = self.world_coords(self.len() - 2).unwrap();
+            (max_x, max_y)
+        }
     }
 
     pub fn iter_world_coords(&self) -> impl Iterator<Item = ((f64, f64), &T)> {
